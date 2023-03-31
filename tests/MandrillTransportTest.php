@@ -3,6 +3,7 @@
 namespace LaravelMandrill\Tests;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Middleware;
 use GuzzleHttp\HandlerStack;
 use Illuminate\Mail\Mailable;
 use GuzzleHttp\Psr7\Response;
@@ -24,39 +25,20 @@ class MailerSendTransportTest extends TestCase
 
     protected function defineEnvironment($app)
     {
-        // Setup default database to use sqlite :memory:
         $app['config']->set('mail.driver', 'mandrill');
-
     }
 
-    protected function setUp(): void
+    /**
+     * Check Mandrill message id is returned.
+     * 
+     */
+    public function testMessageIdIsReturned()
     {
-        parent::setUp();
-    }
 
-    protected function mockMandrillAPiResponces(MockHandler $handler)
-    {
-        // Inject a mocked instance of guzzel into the underlying mandrill transport.
-        // This will allow us to test the mail fully.
-        $mockApiClient = new class($handler) extends ApiClient {
-            public function __construct($handler)
-            {
-                parent::__construct();
+        // tracks activity in the Mock
+        $history = [];
 
-                // Swap in mocked Guzzle instance
-                $this->requestClient = new Client([
-                    'handler' => HandlerStack::create($handler)
-                ]);
-            }
-        };
-
-        Mail::getFacadeRoot()->mailer('mandrill')->getSymfonyTransport()->setClient($mockApiClient);
-    }
-
-
-    public function testRun()
-    {
-        // Mock API for successful email send
+        // Mock Mandrill API as being successful.
         $mock = new MockHandler([
             new Response(200, 
                 ['content-type' => 'application/json'], 
@@ -67,9 +49,7 @@ class MailerSendTransportTest extends TestCase
                 ])
             )
         ]);
-
-        // Mock Mandrill API
-        $this->mockMandrillAPiResponces($mock);
+        $this->mockMandrillAPiResponces($mock, $history);
 
         // Setup test email.
         $testMail = new class() extends Mailable {
@@ -92,5 +72,43 @@ class MailerSendTransportTest extends TestCase
 
         // Trigger event
         Mail::to('testemail@example.com')->send($testMail);
+
+        // Ensure data all got posted to expected locations
+        $this->assertEquals($history[0]['request']->getMethod(), 'POST');
+        $this->assertEquals($history[0]['request']->getRequestTarget(), '/api/1.0/messages/send-raw');
+        $this->assertCount(1, $history);
+    }
+
+    /**
+     * Mock the Mandrills underlying Guzzle instance
+     * 
+     * @param  MockHandler $handler    Used to define a stack of requests to mock
+     * @param  array      &$container  Used to view history of requests made via the mock
+     * @return void
+     */
+    protected function mockMandrillAPiResponces(MockHandler $handler, &$container): void
+    {
+        // Setup mocks
+        $stackHandler = HandlerStack::create($handler);
+
+        // Add history tracking middleware
+        $history = Middleware::history($container);
+        $stackHandler->push($history);
+
+        // Inject a mocked instance of Guzzle into the underlying Mandrill transport.
+        // This will allow us to test the mail right through to Mandrills APIs.
+        $mockApiClient = new class($stackHandler) extends ApiClient {
+            public function __construct($stackHandler)
+            {
+                parent::__construct();
+                // Swap in mocked Guzzle instance
+                $this->requestClient = new Client([
+                    'handler' => HandlerStack::create($stackHandler)
+                ]);
+            }
+        };
+
+        // Inject this into the transport within the Mail Facade
+        Mail::getFacadeRoot()->mailer('mandrill')->getSymfonyTransport()->setClient($mockApiClient);
     }
 }

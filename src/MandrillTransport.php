@@ -35,7 +35,7 @@ class MandrillTransport extends AbstractTransport
 
         // If Mandrill _id was returned, set it as the message id for
         // use elsewhere in the platform.
-        if (!empty($data->_id)){
+        if (!empty($data->_id)) {
             $message->setMessageId($data->_id);
         }
     }
@@ -115,14 +115,14 @@ class MandrillTransport extends AbstractTransport
 
     /**
      * Replace Mandrill client.
-     * Currently implemented for testing but would allow custom guzzle configurations to be
-     * set into the mandrill library (e.g. proxying config)
+     * This is used primarily for testing but could in theory allow other use cases
+     * e.g. Configuring proxying in Guzzle.
      * 
      * @param ApiClient $client [description]
+     * @return void
      */
     public function setClient(ApiClient $client): void
     {
         $this->mailchimp = $client;
     }
-
 }
