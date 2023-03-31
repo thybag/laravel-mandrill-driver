@@ -27,11 +27,17 @@ class MandrillTransport extends AbstractTransport
     {
         $message = $this->setHeaders($message);
 
-        $this->mailchimp->messages->sendRaw([
+        $data = $this->mailchimp->messages->sendRaw([
             'raw_message' => $message->toString(),
             'async' => true,
             'to' => $this->getTo($message),
         ]);
+
+        // If Mandrill _id was returned, set it as the message id for
+        // use elsewhere in the platform.
+        if (!empty($data->_id)){
+            $message->setMessageId($data->_id);
+        }
     }
 
     /**
@@ -106,4 +112,17 @@ class MandrillTransport extends AbstractTransport
     {
         return 'mandrill';
     }
+
+    /**
+     * Replace Mandrill client.
+     * Currently implemented for testing but would allow custom guzzle configurations to be
+     * set into the mandrill library (e.g. proxying config)
+     * 
+     * @param ApiClient $client [description]
+     */
+    public function setClient(ApiClient $client): void
+    {
+        $this->mailchimp = $client;
+    }
+
 }
