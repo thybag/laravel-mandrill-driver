@@ -48,7 +48,7 @@ class MandrillTransport extends AbstractTransport
         ]);
 
         // If Mandrill _id was returned, set it as the message id for
-        // use elsewhere in the platform.
+        // use elsewhere in the application.
         if (!empty($data->_id)) {
             $message->setMessageId($data->_id);
             // Convention seems to be to set this header on the original for access later.
