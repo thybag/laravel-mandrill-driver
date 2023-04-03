@@ -45,9 +45,11 @@ class MailerSendTransportTest extends TestCase
             new Response(200, 
                 ['content-type' => 'application/json'], 
                 json_encode([
-                    "email" => "testemail@example.com",
-                    "status" => "queued",
-                    "_id" => "111111111111111"
+                    [
+                        "email" => "testemail@example.com",
+                        "status" => "queued",
+                        "_id" => "111111111111111"
+                    ]
                 ])
             )
         ]);
@@ -93,9 +95,11 @@ class MailerSendTransportTest extends TestCase
             new Response(200, 
                 ['content-type' => 'application/json'], 
                 json_encode([
-                    "email" => "testemail@example.com",
-                    "status" => "queued",
-                    "_id" => "111111111111111"
+                    [
+                        "email" => "testemail@example.com",
+                        "status" => "queued",
+                        "_id" => "111111111111111"
+                    ]
                 ])
             )
         ]);
