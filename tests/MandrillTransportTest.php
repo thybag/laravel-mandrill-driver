@@ -26,6 +26,9 @@ class MailerSendTransportTest extends TestCase
     protected function defineEnvironment($app)
     {
         $app['config']->set('mail.driver', 'mandrill');
+        $app['config']->set('services.mandrill.headers', [
+            'X-MC-Subaccount' => 'hello_world'
+        ]);
     }
 
     /**
@@ -34,7 +37,6 @@ class MailerSendTransportTest extends TestCase
      */
     public function testMessageIdIsReturned()
     {
-
         // tracks activity in the Mock
         $history = [];
 
@@ -64,6 +66,8 @@ class MailerSendTransportTest extends TestCase
         {
             // Check Mandrill _id was passed back
             $this->assertEquals($event->sent->getMessageId(), "111111111111111");
+            $this->assertEquals($event->message->getHeaders()->get('X-Message-ID')->getValue(), "111111111111111");
+
             // Check correct from email.
             $this->assertEquals($event->message->getFrom()[0]->getAddress(), "mandrill@test.com");
             // Check correct to email.
@@ -77,6 +81,44 @@ class MailerSendTransportTest extends TestCase
         $this->assertEquals($history[0]['request']->getMethod(), 'POST');
         $this->assertEquals($history[0]['request']->getRequestTarget(), '/api/1.0/messages/send-raw');
         $this->assertCount(1, $history);
+    }
+
+    public function testHeadersAreSent()
+    {
+        // tracks activity in the Mock
+        $history = [];
+
+        // Mock Mandrill API as being successful.
+        $mock = new MockHandler([
+            new Response(200, 
+                ['content-type' => 'application/json'], 
+                json_encode([
+                    "email" => "testemail@example.com",
+                    "status" => "queued",
+                    "_id" => "111111111111111"
+                ])
+            )
+        ]);
+        $this->mockMandrillAPiResponces($mock, $history);
+
+        $testMail = new class() extends Mailable {
+            public function build()
+            {
+                return $this->from('mandrill@test.com', 'Test')
+                    ->html('Hello World')
+                    ->subject('Testing things');
+            }
+        };
+
+        // Trigger event
+        Mail::to('testemail@example.com')->send($testMail);
+        
+        $payload = urldecode($history[0]['request']->getBody()->getContents());
+
+        // Ensure headers are set.
+        $this->assertStringContainsString("X-MC-Subaccount: hello_world", $payload);
+        $this->assertStringContainsString("X-Dump: dumpy", $payload);
+        $this->assertStringContainsString("Subject: Testing things", $payload);
     }
 
     /**

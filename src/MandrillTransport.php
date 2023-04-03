@@ -2,10 +2,14 @@
 
 namespace LaravelMandrill;
 
+use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Message;
 use MailchimpTransactional\ApiClient;
+use Symfony\Component\Mailer\Envelope;
+use Symfony\Component\Mime\RawMessage;
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
-use Symfony\Component\Mime\Email;
+
 
 class MandrillTransport extends AbstractTransport
 {
@@ -23,10 +27,20 @@ class MandrillTransport extends AbstractTransport
     /**
      * {@inheritDoc}
      */
+    public function send(RawMessage $message, Envelope $envelope = null): ?SentMessage
+    {
+        // Set headers must take place before SentMessage is formed or it will not be part
+        // of the payload submitted to the Mandrill API.
+        $message = $this->setHeaders($message);
+        
+        return parent::send($message, $envelope);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     protected function doSend(SentMessage $message): void
     {
-        $message = $this->setHeaders($message);
-
         $data = $this->mailchimp->messages->sendRaw([
             'raw_message' => $message->toString(),
             'async' => true,
@@ -37,7 +51,10 @@ class MandrillTransport extends AbstractTransport
         // use elsewhere in the platform.
         if (!empty($data->_id)) {
             $message->setMessageId($data->_id);
+            // Convention seems to be to set this header on the original for access later.
+            $message->getOriginalMessage()->getHeaders()->addHeader('X-Message-ID', $data->_id);
         }
+
     }
 
     /**
@@ -86,14 +103,13 @@ class MandrillTransport extends AbstractTransport
     /**
      * Set headers of email.
      *
-     * @param SentMessage  $message
+     * @param Message $message
      *
-     * @return SentMessage
+     * @return Message
      */
-    protected function setHeaders(SentMessage $message): SentMessage
-    {
-        $messageHeaders = $message->getOriginalMessage()->getHeaders();
-
+    protected function setHeaders(Message $message): Message
+    {   
+        $messageHeaders = $message->getHeaders();
         $messageHeaders->addTextHeader('X-Dump', 'dumpy');
 
         foreach ($this->headers as $name => $value) {
